@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Key Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 28px; margin-bottom: 24px; color: #f8fafc; }
+    .login-box {
+      max-width: 320px;
+      margin: 80px auto;
+      background: rgba(30, 41, 59, 0.9);
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .login-box h2 { margin-bottom: 16px; font-size: 20px; }
+    .login-box input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .login-box button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .login-box button:hover { background: #2563eb; }
+    .login-error { color: #f87171; font-size: 13px; margin-top: 8px; }
+    .panel { display: none; }
+    .panel.visible { display: block; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn-logout { background: #64748b; color: white; }
+    .btn-logout:hover { background: #475569; }
+    .card {
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .card h2 { font-size: 18px; margin-bottom: 16px; }
+    .form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .form-group { flex: 1; min-width: 140px; }
+    .form-group label { display: block; font-size: 12px; margin-bottom: 4px; color: #94a3b8; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+    }
+    .btn-gen { background: #10b981; color: white; }
+    .btn-gen:hover { background: #059669; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(148, 163, 184, 0.15); }
+    th { color: #94a3b8; font-weight: 600; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-active { background: #065f46; color: #6ee7b7; }
+    .status-disabled { background: #7f1d1d; color: #fca5a5; }
+    .status-used { background: #1e3a5f; color: #93c5fd; }
+    .status-expired { background: #422006; color: #fcd34d; }
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .btn-disable { background: #b91c1c; color: white; }
+    .btn-enable { background: #15803d; color: white; }
+    .btn-delete { background: #374151; color: white; }
+    .btn-delete:hover { background: #1f2937; }
+    .key-cell { font-family: monospace; font-size: 12px; }
+    .empty { text-align: center; padding: 40px; color: #64748b; }
+    .gen-result {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      word-break: break-all;
+    }
+    .gen-result.success { border-left: 4px solid #10b981; }
+  </style>
+</head>
+<body>
+  <div id="login-screen" class="login-box">
+    <h2>Admin Login</h2>
+    <input type="password" id="admin-password" placeholder="Parolă admin" autocomplete="current-password" />
+    <button type="button" id="admin-login-btn">Intră</button>
+    <div id="login-error" class="login-error"></div>
+  </div>
+
+  <div id="admin-panel" class="panel">
+    <div class="container">
+      <div class="header">
+        <h1>Key Manager</h1>
+        <button class="btn btn-logout" id="logout-btn">Deconectare</button>
+      </div>
+
+      <div class="card">
+        <h2>Generează key nou</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="gen-username" placeholder="ex: player1" />
+          </div>
+          <div class="form-group">
+            <label>Durata (zile)</label>
+            <select id="gen-duration">
+              <option value="7">7 zile</option>
+              <option value="30" selected>30 zile</option>
+              <option value="90">90 zile</option>
+              <option value="180">180 zile</option>
+              <option value="365">365 zile</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <button class="btn btn-gen" id="gen-btn">Generează</button>
+          </div>
+        </div>
+        <div id="gen-result" class="gen-result" style="display:none;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Toate key-urile</h2>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>User</th>
+                <th>Expiry</th>
+                <th>Timp rămas</th>
+                <th>Status</th>
+                <th>Acțiuni</th>
+              </tr>
+            </thead>
+            <tbody id="keys-tbody">
+              <tr><td colspan="6" class="empty">Se încarcă...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    let token = localStorage.getItem('adminToken');
+
+    function show(el, visible) {
+      el.style.display = visible ? 'block' : 'none';
+    }
+
+    function setLoginError(msg) {
+      document.getElementById('login-error').textContent = msg || '';
+    }
+
+    async function api(path, options = {}) {
+      const headers = { 'Content-Type': 'application/json', ...options.headers };
+      if (token) headers['X-Admin-Token'] = token;
+      const res = await fetch(API + path, { ...options, headers });
+      const data = res.ok ? await res.json().catch(() => ({})) : await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Eroare');
+      return data;
+    }
+
+    function renderStatus(k) {
+      const now = new Date();
+      const exp = new Date(k.expiresAt);
+      if (k.used) return '<span class="status-badge status-used">Folosită</span>';
+      if (k.status === 'disabled') return '<span class="status-badge status-disabled">Dezactivată</span>';
+      if (exp < now) return '<span class="status-badge status-expired">Expirată</span>';
+      return '<span class="status-badge status-active">Activă</span>';
+    }
+
+    function timeLeft(expiresAt) {
+      const now = new Date();
+      const exp = new Date(expiresAt);
+      if (exp < now) return 'Expirat';
+      const ms = exp - now;
+      const d = Math.floor(ms / 86400000);
+      const h = Math.floor((ms % 86400000) / 3600000);
+      if (d > 0) return `${d} zile`;
+      if (h > 0) return `${h} ore`;
+      return '< 1 oră';
+    }
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleString('ro-RO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    async function loadKeys() {
+      const tbody = document.getElementById('keys-tbody');
+      try {
+        const keys = await api('/api/admin/keys');
+        if (keys.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty">Nicio key. Generează una mai sus.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = keys.map(k => `
+          <tr>
+            <td class="key-cell">${k.key}</td>
+            <td>${k.username || '-'}</td>
+            <td>${formatDate(k.expiresAt)}</td>
+            <td>${timeLeft(k.expiresAt)}</td>
+            <td>${renderStatus(k)}</td>
+            <td>
+              ${!k.used && k.status === 'active' && new Date(k.expiresAt) > new Date()
+                ? `<button class="btn-sm btn-disable" data-key="${k.key}">Dezactivează</button>`
+                : !k.used && k.status === 'disabled'
+                ? `<button class="btn-sm btn-enable" data-key="${k.key}">Activează</button>`
+                : ''}
+              <button class="btn-sm btn-delete" data-key="${k.key}">Șterge</button>
+            </td>
+          </tr>
+        `).join('');
+
+        tbody.querySelectorAll('.btn-disable').forEach(b => {
+          b.onclick = () => toggleKey(b.dataset.key, 'disabled');
+        });
+        tbody.querySelectorAll('.btn-enable').forEach(b => {
+          b.onclick = () => toggleKey(b.dataset.key, 'active');
+        });
+        tbody.querySelectorAll('.btn-delete').forEach(b => {
+          b.onclick = () => deleteKey(b.dataset.key);
+        });
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty" style="color:#f87171">${e.message}</td></tr>`;
+      }
+    }
+
+    async function toggleKey(key, status) {
+      try {
+        await api(`/api/admin/keys/${encodeURIComponent(key)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status })
+        });
+        loadKeys();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function deleteKey(key) {
+      if (!confirm('Ștergi key-ul ' + key + '?')) return;
+      try {
+        await api(`/api/admin/keys/${encodeURIComponent(key)}`, { method: 'DELETE' });
+        loadKeys();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    document.getElementById('admin-login-btn').onclick = async () => {
+      const pass = document.getElementById('admin-password').value;
+      setLoginError('');
+      if (!pass) { setLoginError('Introdu parola.'); return; }
+      try {
+        const { token: t } = await api('/api/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ password: pass })
+        });
+        token = t;
+        localStorage.setItem('adminToken', token);
+        show(document.getElementById('login-screen'), false);
+        show(document.getElementById('admin-panel'), true);
+        loadKeys();
+      } catch (e) {
+        setLoginError(e.message || 'Parolă greșită.');
+      }
+    };
+
+    document.getElementById('logout-btn').onclick = () => {
+      api('/api/admin/logout', { method: 'POST' }).catch(() => {});
+      token = null;
+      localStorage.removeItem('adminToken');
+      show(document.getElementById('login-screen'), true);
+      show(document.getElementById('admin-panel'), false);
+    };
+
+    document.getElementById('gen-btn').onclick = async () => {
+      const username = document.getElementById('gen-username').value.trim();
+      const duration = document.getElementById('gen-duration').value;
+      const resultEl = document.getElementById('gen-result');
+      if (!username) { resultEl.textContent = 'Introdu username.'; resultEl.className = 'gen-result'; resultEl.style.display = 'block'; return; }
+      try {
+        const k = await api('/api/admin/keys', {
+          method: 'POST',
+          body: JSON.stringify({ username, durationDays: Number(duration) })
+        });
+        resultEl.innerHTML = `Key generată: <strong>${k.key}</strong> (${k.username}, expiră ${formatDate(k.expiresAt)})`;
+        resultEl.className = 'gen-result success';
+        resultEl.style.display = 'block';
+        document.getElementById('gen-username').value = '';
+        loadKeys();
+      } catch (e) {
+        resultEl.textContent = e.message || 'Eroare';
+        resultEl.className = 'gen-result';
+        resultEl.style.display = 'block';
+      }
+    };
+
+    if (token) {
+      show(document.getElementById('login-screen'), false);
+      show(document.getElementById('admin-panel'), true);
+      loadKeys();
+    } else {
+      show(document.getElementById('login-screen'), true);
+      show(document.getElementById('admin-panel'), false);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crează cont</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1e293b, #020617);
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 16px;
+    }
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #9ca3af; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; margin-bottom: 4px; }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 16px;
+      margin-bottom: 12px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px #38bdf8;
+      outline: none;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 999px;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(to right, #06b6d4, #3b82f6);
+      color: white;
+      margin-top: 8px;
+    }
+    button:hover { opacity: 0.95; }
+    .status { margin-top: 12px; font-size: 13px; min-height: 18px; }
+    .status.success { color: #4ade80; }
+    .status.error { color: #f97373; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Crează cont</h1>
+    <p class="subtitle">Introdu username, parola și key-ul primit.</p>
+    <form id="register-form">
+      <label>Username</label>
+      <input id="reg-username" autocomplete="username" placeholder="Alege un username" />
+      <label>Parolă</label>
+      <input id="reg-password" type="password" autocomplete="new-password" placeholder="Alege o parolă" />
+      <label>Key</label>
+      <input id="reg-key" autocomplete="off" placeholder="Key-ul tău de licență" />
+      <button type="submit">Crează cont</button>
+      <div id="register-status" class="status"></div>
+    </form>
+  </div>
+  <script>
+    function setStatus(el, msg, type) {
+      el.textContent = msg || '';
+      el.className = 'status' + (type ? ' ' + type : '');
+    }
+    document.getElementById('register-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('reg-username').value.trim();
+      const password = document.getElementById('reg-password').value.trim();
+      const key = document.getElementById('reg-key').value.trim();
+      const el = document.getElementById('register-status');
+      setStatus(el, 'Se trimite...', 'success');
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, key })
+        });
+        const data = await res.json();
+        setStatus(el, data.message, res.ok ? 'success' : 'error');
+      } catch (err) {
+        setStatus(el, 'Eroare de rețea.', 'error');
+      }
+    };
+  </script>
+</body>
+</html>
