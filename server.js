@@ -65,8 +65,17 @@ function isKeyValid(keyObj) {
   return true;
 }
 
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
+});
+
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const file = path.join(__dirname, 'public', 'index.html');
+  if (!fs.existsSync(file)) {
+    console.error('index.html not found at', file);
+    return res.status(500).send('Configurare incorectă.');
+  }
+  res.sendFile(file);
 });
 
 app.get('/admin', (req, res) => {
