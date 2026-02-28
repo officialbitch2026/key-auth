@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crează cont</title>
+  <title>Key Auth</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -25,6 +25,18 @@
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
       border: 1px solid rgba(148, 163, 184, 0.3);
     }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tabs button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: rgba(51, 65, 85, 0.5);
+      color: #94a3b8;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tabs button.active { background: #3b82f6; color: white; }
     h1 { font-size: 24px; margin-bottom: 8px; }
     .subtitle { font-size: 14px; color: #9ca3af; margin-bottom: 20px; }
     label { display: block; font-size: 13px; margin-bottom: 4px; }
@@ -45,7 +57,7 @@
       box-shadow: 0 0 0 1px #38bdf8;
       outline: none;
     }
-    button {
+    button[type="submit"] {
       width: 100%;
       padding: 14px;
       border-radius: 999px;
@@ -57,32 +69,90 @@
       color: white;
       margin-top: 8px;
     }
-    button:hover { opacity: 0.95; }
+    button[type="submit"]:hover { opacity: 0.95; }
     .status { margin-top: 12px; font-size: 13px; min-height: 18px; }
     .status.success { color: #4ade80; }
     .status.error { color: #f97373; }
+    .form-wrap { display: none; }
+    .form-wrap.active { display: block; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Crează cont</h1>
-    <p class="subtitle">Introdu username, parola și key-ul primit.</p>
-    <form id="register-form">
-      <label>Username</label>
-      <input id="reg-username" autocomplete="username" placeholder="Alege un username" />
-      <label>Parolă</label>
-      <input id="reg-password" type="password" autocomplete="new-password" placeholder="Alege o parolă" />
-      <label>Key</label>
-      <input id="reg-key" autocomplete="off" placeholder="Key-ul tău de licență" />
-      <button type="submit">Crează cont</button>
-      <div id="register-status" class="status"></div>
-    </form>
+    <div class="tabs">
+      <button type="button" class="tab-switch active" data-form="login">Login</button>
+      <button type="button" class="tab-switch" data-form="register">Crează cont</button>
+    </div>
+
+    <div id="form-login" class="form-wrap active">
+      <h1>Login</h1>
+      <p class="subtitle">Autentificare cu username și parolă.</p>
+      <form id="login-form">
+        <label>Username</label>
+        <input id="login-username" autocomplete="username" />
+        <label>Parolă</label>
+        <input id="login-password" type="password" autocomplete="current-password" />
+        <button type="submit">Login</button>
+        <div id="login-status" class="status"></div>
+      </form>
+    </div>
+
+    <div id="form-register" class="form-wrap">
+      <h1>Crează cont</h1>
+      <p class="subtitle">Introdu username, parola și key-ul primit.</p>
+      <form id="register-form">
+        <label>Username</label>
+        <input id="reg-username" autocomplete="username" placeholder="Alege un username" />
+        <label>Parolă</label>
+        <input id="reg-password" type="password" autocomplete="new-password" placeholder="Alege o parolă" />
+        <label>Key</label>
+        <input id="reg-key" autocomplete="off" placeholder="Key-ul tău de licență" />
+        <button type="submit">Crează cont</button>
+        <div id="register-status" class="status"></div>
+      </form>
+    </div>
   </div>
   <script>
+    if (localStorage.getItem('authToken')) {
+      window.location.href = '/dashboard';
+    }
     function setStatus(el, msg, type) {
       el.textContent = msg || '';
       el.className = 'status' + (type ? ' ' + type : '');
     }
+    function onSuccess(data) {
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+        window.location.href = '/dashboard';
+      }
+    }
+    document.querySelectorAll('.tab-switch').forEach((b) => {
+      b.onclick = () => {
+        document.querySelectorAll('.tab-switch').forEach((x) => x.classList.remove('active'));
+        document.querySelectorAll('.form-wrap').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        document.getElementById('form-' + b.dataset.form).classList.add('active');
+      };
+    });
+    document.getElementById('login-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+      const el = document.getElementById('login-status');
+      setStatus(el, 'Se trimite...', 'success');
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) return onSuccess(data);
+        setStatus(el, data.message || 'Eroare', 'error');
+      } catch (err) {
+        setStatus(el, 'Eroare de rețea.', 'error');
+      }
+    };
     document.getElementById('register-form').onsubmit = async (e) => {
       e.preventDefault();
       const username = document.getElementById('reg-username').value.trim();
@@ -97,7 +167,8 @@
           body: JSON.stringify({ username, password, key })
         });
         const data = await res.json();
-        setStatus(el, data.message, res.ok ? 'success' : 'error');
+        if (res.ok) return onSuccess(data);
+        setStatus(el, data.message || 'Eroare', 'error');
       } catch (err) {
         setStatus(el, 'Eroare de rețea.', 'error');
       }

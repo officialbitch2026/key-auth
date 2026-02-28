@@ -12,8 +12,22 @@ const PORT = process.env.PORT || 3001;
 const USERS_FILE = path.join(__dirname, 'users.json');
 const KEYS_FILE = path.join(__dirname, 'keys.json');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
+const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
 
 const adminTokens = new Set();
+const sessions = new Map();
+
+function loadSessions() {
+  const data = readJson(SESSIONS_FILE, []);
+  data.forEach((s) => {
+    if (s.token && s.username) sessions.set(s.token, { username: s.username, expiresAt: s.expiresAt });
+  });
+}
+function saveSessions() {
+  const arr = Array.from(sessions.entries()).map(([token, s]) => ({ token, username: s.username, expiresAt: s.expiresAt }));
+  writeJson(SESSIONS_FILE, arr);
+}
+loadSessions();
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -37,10 +51,29 @@ function writeJson(filePath, data) {
   }
 }
 
+function getConfig() {
+  const env = {
+    adminPassword: process.env.ADMIN_PASSWORD,
+    discordUrl: process.env.DISCORD_URL,
+    youtubeUrl: process.env.YOUTUBE_URL,
+  };
+  const file = readJson(CONFIG_FILE, {});
+  return {
+    adminPassword: env.adminPassword || file.adminPassword || 'admin123',
+    discordUrl: env.discordUrl || file.discordUrl || 'https://discord.gg/',
+    youtubeUrl: env.youtubeUrl || file.youtubeUrl || 'https://youtube.com/',
+  };
+}
 function getAdminPassword() {
-  if (process.env.ADMIN_PASSWORD) return process.env.ADMIN_PASSWORD;
-  const config = readJson(CONFIG_FILE, {});
-  return config.adminPassword || 'admin123';
+  return getConfig().adminPassword;
+}
+function requireUser(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-auth-token'];
+  const session = token && sessions.get(token);
+  if (!session) return res.status(401).json({ message: 'Neautorizat.' });
+  req.session = session;
+  req.authToken = token;
+  next();
 }
 
 function requireAdmin(req, res, next) {
@@ -69,12 +102,14 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
+const HTML_MAP = { 'index.html': 'page-index.html', 'admin.html': 'page-admin.html', 'dashboard.html': 'page-dashboard.html' };
 function findHtml(name) {
+  const alt = HTML_MAP[name];
   const candidates = [
     path.join(__dirname, 'public', name),
-    path.join(__dirname, name === 'index.html' ? 'page-index.html' : 'page-admin.html'),
+    path.join(__dirname, alt || name),
     path.join(process.cwd(), 'public', name),
-    path.join(process.cwd(), name === 'index.html' ? 'page-index.html' : 'page-admin.html'),
+    path.join(process.cwd(), alt || name),
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
@@ -91,6 +126,12 @@ app.get('/', (req, res) => {
 app.get('/admin', (req, res) => {
   const file = findHtml('admin.html');
   if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-admin.html e în repo.');
+  res.sendFile(file);
+});
+
+app.get('/dashboard', (req, res) => {
+  const file = findHtml('dashboard.html');
+  if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-dashboard.html e în repo.');
   res.sendFile(file);
 });
 
@@ -175,6 +216,130 @@ app.delete('/api/admin/keys/:key', requireAdmin, (req, res) => {
   return res.json({ message: 'Key ștearsă.' });
 });
 
+function getUserExpiry(username) {
+  const keys = readJson(KEYS_FILE, []);
+  const userKeys = keys.filter((k) => k.assignedTo === username && k.status !== 'disabled');
+  if (userKeys.length === 0) return null;
+  const latest = userKeys.reduce((a, k) => (new Date(k.expiresAt) > new Date(a.expiresAt) ? k : a));
+  return latest.expiresAt;
+}
+
+app.get('/api/config', (req, res) => {
+  const cfg = getConfig();
+  return res.json({ discordUrl: cfg.discordUrl, youtubeUrl: cfg.youtubeUrl });
+});
+
+app.post('/api/login', async (req, res) => {
+  const { username, password, key } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username și parola sunt obligatorii.' });
+  }
+
+  const users = readJson(USERS_FILE, []);
+  const user = users.find((u) => u.username === username);
+  if (!user) return res.status(400).json({ message: 'Username sau parolă greșite.' });
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) return res.status(400).json({ message: 'Username sau parolă greșite.' });
+
+  if (key) {
+    const keys = readJson(KEYS_FILE, []);
+    const keyObj = keys.find((k) => k.key === key && k.assignedTo === username);
+    if (!keyObj) return res.status(400).json({ message: 'Key invalidă pentru acest cont.' });
+    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key dezactivată.' });
+    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expirată.' });
+  }
+
+  const expiresAt = getUserExpiry(username);
+  if (!expiresAt || new Date(expiresAt) < new Date()) {
+    return res.status(400).json({ message: 'Licența a expirat.' });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, { username, expiresAt });
+  saveSessions();
+
+  return res.json({ token, user: { username, expiresAt, theme: user.theme || 'dark' } });
+});
+
+app.get('/api/me', requireUser, (req, res) => {
+  const { username } = req.session;
+  const expiresAt = getUserExpiry(username);
+  const users = readJson(USERS_FILE, []);
+  const user = users.find((u) => u.username === username);
+  if (!expiresAt || new Date(expiresAt) < new Date()) {
+    return res.status(403).json({ message: 'Licența a expirat.' });
+  }
+  return res.json({ username, expiresAt, theme: user?.theme || 'dark' });
+});
+
+app.post('/api/extend', requireUser, (req, res) => {
+  const { key } = req.body;
+  const { username } = req.session;
+  if (!key) return res.status(400).json({ message: 'Introdu key-ul.' });
+
+  const keys = readJson(KEYS_FILE, []);
+  const keyObj = keys.find((k) => k.key === key);
+  if (!keyObj) return res.status(400).json({ message: 'Key invalidă.' });
+  if (!isKeyValid(keyObj)) return res.status(400).json({ message: 'Key invalidă sau deja folosită.' });
+
+  const userKeys = keys.filter((k) => k.assignedTo === username);
+  const currentLatest = userKeys.length
+    ? userKeys.reduce((a, k) => (new Date(k.expiresAt) > new Date(a.expiresAt) ? k : a))
+    : null;
+  const now = new Date();
+  const baseDate = currentLatest && new Date(currentLatest.expiresAt) > now ? new Date(currentLatest.expiresAt) : now;
+  const durationMs = new Date(keyObj.expiresAt) - new Date(keyObj.createdAt);
+  const newExpiresAt = new Date(baseDate.getTime() + durationMs);
+
+  keyObj.used = true;
+  keyObj.assignedTo = username;
+  keyObj.expiresAt = newExpiresAt.toISOString();
+  writeJson(KEYS_FILE, keys);
+
+  const token = req.authToken;
+  if (token) sessions.set(token, { username, expiresAt: keyObj.expiresAt });
+  saveSessions();
+
+  return res.json({ message: 'Timp adăugat cu succes.', expiresAt: keyObj.expiresAt });
+});
+
+app.post('/api/change-password', requireUser, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const { username } = req.session;
+  if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Completează câmpurile.' });
+
+  const users = readJson(USERS_FILE, []);
+  const idx = users.findIndex((u) => u.username === username);
+  if (idx === -1) return res.status(400).json({ message: 'Utilizator negăsit.' });
+  const ok = await bcrypt.compare(oldPassword, users[idx].passwordHash);
+  if (!ok) return res.status(400).json({ message: 'Parola veche greșită.' });
+  users[idx].passwordHash = await bcrypt.hash(newPassword, 10);
+  writeJson(USERS_FILE, users);
+  return res.json({ message: 'Parolă schimbată.' });
+});
+
+app.patch('/api/settings', requireUser, (req, res) => {
+  const { theme } = req.body;
+  const { username } = req.session;
+  const validThemes = ['dark', 'light', 'red', 'blue', 'green'];
+  if (!theme || !validThemes.includes(theme)) return res.status(400).json({ message: 'Temă invalidă.' });
+
+  const users = readJson(USERS_FILE, []);
+  const idx = users.findIndex((u) => u.username === username);
+  if (idx === -1) return res.status(400).json({ message: 'Utilizator negăsit.' });
+  users[idx].theme = theme;
+  writeJson(USERS_FILE, users);
+  return res.json({ message: 'Setări salvate.', theme });
+});
+
+app.post('/api/logout', requireUser, (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-auth-token'];
+  sessions.delete(token);
+  saveSessions();
+  return res.json({ message: 'Deconectat.' });
+});
+
 app.post('/api/register', async (req, res) => {
   const { username, password, key } = req.body;
   if (!username || !password || !key) {
@@ -199,42 +364,23 @@ app.post('/api/register', async (req, res) => {
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    users.push({ username, passwordHash, key });
+    users.push({ username, passwordHash, key, theme: 'dark' });
     writeJson(USERS_FILE, users);
 
     keyObj.used = true;
     keyObj.assignedTo = username;
     writeJson(KEYS_FILE, keys);
 
-    return res.json({ message: 'Cont creat cu succes.' });
+    const expiresAt = keyObj.expiresAt;
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, { username, expiresAt });
+    saveSessions();
+
+    return res.json({ token, user: { username, expiresAt, theme: 'dark' } });
   } catch (err) {
     console.error('Eroare la înregistrare:', err);
     return res.status(500).json({ message: 'Eroare de server.' });
   }
-});
-
-app.post('/api/login', async (req, res) => {
-  const { username, password, key } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username și parola sunt obligatorii.' });
-  }
-
-  const users = readJson(USERS_FILE, []);
-  const user = users.find((u) => u.username === username);
-  if (!user) return res.status(400).json({ message: 'Username sau parolă greșite.' });
-
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(400).json({ message: 'Username sau parolă greșite.' });
-
-  if (key) {
-    const keys = readJson(KEYS_FILE, []);
-    const keyObj = keys.find((k) => k.key === key && k.assignedTo === username);
-    if (!keyObj) return res.status(400).json({ message: 'Key invalidă pentru acest cont.' });
-    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key dezactivată.' });
-    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expirată.' });
-  }
-
-  return res.json({ message: 'Logat cu succes.' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
