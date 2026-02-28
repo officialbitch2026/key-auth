@@ -69,20 +69,36 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/', (req, res) => {
-  const file = path.join(__dirname, 'public', 'index.html');
-  if (!fs.existsSync(file)) {
-    console.error('index.html not found at', file);
-    return res.status(500).send('Configurare incorectă.');
+function findHtml(name) {
+  const candidates = [
+    path.join(__dirname, 'public', name),
+    path.join(__dirname, name === 'index.html' ? 'page-index.html' : 'page-admin.html'),
+    path.join(process.cwd(), 'public', name),
+    path.join(process.cwd(), name === 'index.html' ? 'page-index.html' : 'page-admin.html'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
   }
+  return null;
+}
+
+app.get('/', (req, res) => {
+  const file = findHtml('index.html');
+  if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-index.html e în repo.');
   res.sendFile(file);
 });
 
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  const file = findHtml('admin.html');
+  if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-admin.html e în repo.');
+  res.sendFile(file);
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+const staticDirs = [
+  path.join(__dirname, 'public'),
+  __dirname,
+].filter((d) => fs.existsSync(d));
+staticDirs.forEach((d) => app.use(express.static(d)));
 
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body;
