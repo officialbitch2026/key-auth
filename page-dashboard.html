@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -127,21 +127,11 @@
     .status { margin-top: 12px; font-size: 13px; min-height: 18px; }
     .status.success { color: #4ade80; }
     .status.error { color: #f87171; }
-    .purchase-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 16px;
+    .purchase-msg {
+      margin-bottom: 16px;
+      line-height: 1.6;
+      max-width: 480px;
     }
-    .purchase-item {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-    }
-    body.theme-light .purchase-item { background: rgba(255,255,255,0.8); }
-    .purchase-item .price { font-size: 28px; font-weight: 700; color: #38bdf8; }
-    .purchase-item .days { font-size: 14px; color: #94a3b8; }
     .theme-opt { display: inline-block; margin: 4px; padding: 8px 16px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
     .theme-opt:hover { border-color: #64748b; }
     .theme-opt.selected { border-color: #38bdf8; }
@@ -158,14 +148,14 @@
   </aside>
   <main class="main">
     <div class="expiry-box">
-      <div class="expiry-label">Timp rămas</div>
+      <div class="expiry-label">Time left</div>
       <div id="expiry-display" class="expiry-value">00:00:00</div>
     </div>
 
     <div id="tab-discord" class="tab-content">
       <div class="card">
         <h2>Discord Server</h2>
-        <p>Alătură-te comunității noastre pe Discord.</p>
+        <p>Join our community on Discord.</p>
         <a id="discord-link" href="#" target="_blank" class="link-btn">Join Discord</a>
       </div>
     </div>
@@ -173,26 +163,26 @@
     <div id="tab-extend" class="tab-content">
       <div class="card">
         <h2>Extend Key</h2>
-        <p>Introdu o key nouă pentru a-ți prelungi licența.</p>
-        <input id="extend-key" placeholder="Key-ul tău nou" />
-        <button class="btn btn-success" id="extend-btn">Adaugă timp</button>
+        <p>Enter a new key to extend your license.</p>
+        <input id="extend-key" placeholder="Your new key" />
+        <button class="btn btn-success" id="extend-btn">Add time</button>
         <div id="extend-status" class="status"></div>
       </div>
     </div>
 
     <div id="tab-settings" class="tab-content">
       <div class="card">
-        <h2>Schimbă parola</h2>
-        <label>Parola veche</label>
-        <input type="password" id="old-password" placeholder="Parola actuală" />
-        <label>Parola nouă</label>
-        <input type="password" id="new-password" placeholder="Parola nouă" />
-        <button class="btn" id="change-pwd-btn">Salvează parola</button>
+        <h2>Change password</h2>
+        <label>Current password</label>
+        <input type="password" id="old-password" placeholder="Current password" />
+        <label>New password</label>
+        <input type="password" id="new-password" placeholder="New password" />
+        <button class="btn" id="change-pwd-btn">Save password</button>
         <div id="pwd-status" class="status"></div>
       </div>
       <div class="card">
-        <h2>Temă</h2>
-        <p>Alege tema interfeței.</p>
+        <h2>Theme</h2>
+        <p>Choose the interface theme.</p>
         <span class="theme-opt selected" data-theme="dark">Dark</span>
         <span class="theme-opt" data-theme="light">Light</span>
         <span class="theme-opt" data-theme="red">Red</span>
@@ -204,7 +194,7 @@
     <div id="tab-youtube" class="tab-content">
       <div class="card">
         <h2>YouTube Channel</h2>
-        <p>Abonează-te la canalul nostru.</p>
+        <p>Subscribe to our channel.</p>
         <a id="youtube-link" href="#" target="_blank" class="link-btn yt">YouTube</a>
       </div>
     </div>
@@ -212,21 +202,8 @@
     <div id="tab-purchase" class="tab-content">
       <div class="card">
         <h2>Purchase</h2>
-        <p>Cumpără timp suplimentar pentru licență.</p>
-        <div class="purchase-grid">
-          <div class="purchase-item">
-            <div class="price">$10</div>
-            <div class="days">7 zile</div>
-          </div>
-          <div class="purchase-item">
-            <div class="price">$25</div>
-            <div class="days">30 zile</div>
-          </div>
-          <div class="purchase-item">
-            <div class="price">$45</div>
-            <div class="days">60 zile</div>
-          </div>
-        </div>
+        <p class="purchase-msg">To purchase additional license time and receive your key, please contact us on our Discord server. Payment and key delivery are handled there.</p>
+        <a id="purchase-discord-link" href="#" target="_blank" class="link-btn">Go to Discord</a>
       </div>
     </div>
   </main>
@@ -242,7 +219,7 @@
       const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, ...options.headers };
       return fetch(path, { ...options, headers }).then(async (r) => {
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.message || 'Eroare');
+        if (!r.ok) throw new Error(data.message || 'Error');
         return data;
       });
     }
@@ -286,8 +263,11 @@
     async function loadConfig() {
       try {
         const cfg = await fetch('/api/config').then((r) => r.json());
-        document.getElementById('discord-link').href = cfg.discordUrl || 'https://discord.gg/';
+        const discordUrl = cfg.discordUrl || 'https://discord.gg/';
+        document.getElementById('discord-link').href = discordUrl;
         document.getElementById('youtube-link').href = cfg.youtubeUrl || 'https://youtube.com/';
+        const purchaseLink = document.getElementById('purchase-discord-link');
+        if (purchaseLink) purchaseLink.href = discordUrl;
       } catch (_) {}
     }
 
@@ -305,12 +285,12 @@
     document.getElementById('extend-btn').onclick = async () => {
       const key = document.getElementById('extend-key').value.trim();
       const el = document.getElementById('extend-status');
-      el.textContent = 'Se trimite...';
+      el.textContent = 'Processing...';
       el.className = 'status';
       try {
         const data = await api('/api/extend', { method: 'POST', body: JSON.stringify({ key }) });
         userData.expiresAt = data.expiresAt;
-        el.textContent = data.message || 'Succes!';
+        el.textContent = data.message || 'Success!';
         el.className = 'status success';
         document.getElementById('extend-key').value = '';
       } catch (e) {
@@ -323,11 +303,11 @@
       const oldP = document.getElementById('old-password').value;
       const newP = document.getElementById('new-password').value;
       const el = document.getElementById('pwd-status');
-      el.textContent = 'Se salvează...';
+      el.textContent = 'Saving...';
       el.className = 'status';
       try {
         await api('/api/change-password', { method: 'POST', body: JSON.stringify({ oldPassword: oldP, newPassword: newP }) });
-        el.textContent = 'Parolă schimbată.';
+        el.textContent = 'Password changed.';
         el.className = 'status success';
         document.getElementById('old-password').value = '';
         document.getElementById('new-password').value = '';

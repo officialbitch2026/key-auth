@@ -54,12 +54,14 @@ function writeJson(filePath, data) {
 function getConfig() {
   const env = {
     adminPassword: process.env.ADMIN_PASSWORD,
+    adminPath: process.env.ADMIN_PATH,
     discordUrl: process.env.DISCORD_URL,
     youtubeUrl: process.env.YOUTUBE_URL,
   };
   const file = readJson(CONFIG_FILE, {});
   return {
     adminPassword: env.adminPassword || file.adminPassword || 'admin123',
+    adminPath: env.adminPath || file.adminPath || '/panel-x9k2m',
     discordUrl: env.discordUrl || file.discordUrl || 'https://discord.gg/',
     youtubeUrl: env.youtubeUrl || file.youtubeUrl || 'https://youtube.com/',
   };
@@ -70,7 +72,7 @@ function getAdminPassword() {
 function requireUser(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-auth-token'];
   const session = token && sessions.get(token);
-  if (!session) return res.status(401).json({ message: 'Neautorizat.' });
+  if (!session) return res.status(401).json({ message: 'Unauthorized.' });
   req.session = session;
   req.authToken = token;
   next();
@@ -119,13 +121,14 @@ function findHtml(name) {
 
 app.get('/', (req, res) => {
   const file = findHtml('index.html');
-  if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-index.html e în repo.');
+  if (!file) return res.status(500).send('Missing page. Check page-index.html in repo.');
   res.sendFile(file);
 });
 
-app.get('/admin', (req, res) => {
+const ADMIN_PATH = getConfig().adminPath;
+app.get(ADMIN_PATH, (req, res) => {
   const file = findHtml('admin.html');
-  if (!file) return res.status(500).send('Fișier lipsă. Verifică că page-admin.html e în repo.');
+  if (!file) return res.status(500).send('Missing admin page.');
   res.sendFile(file);
 });
 
@@ -145,7 +148,7 @@ app.post('/api/admin/login', (req, res) => {
   const { password } = req.body;
   const adminPass = getAdminPassword();
   if (password !== adminPass) {
-    return res.status(401).json({ message: 'Parolă greșită.' });
+    return res.status(401).json({ message: 'Wrong password.' });
   }
   const token = crypto.randomBytes(32).toString('hex');
   adminTokens.add(token);
@@ -155,7 +158,7 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout', requireAdmin, (req, res) => {
   const token = req.headers['x-admin-token'];
   adminTokens.delete(token);
-  return res.json({ message: 'Deconectat.' });
+  return res.json({ message: 'Logged out.' });
 });
 
 app.get('/api/admin/keys', requireAdmin, (req, res) => {
@@ -166,7 +169,7 @@ app.get('/api/admin/keys', requireAdmin, (req, res) => {
 app.post('/api/admin/keys', requireAdmin, (req, res) => {
   const { username, durationDays } = req.body;
   if (!username || !durationDays || durationDays < 1) {
-    return res.status(400).json({ message: 'Username și durata (zile) sunt obligatorii.' });
+    return res.status(400).json({ message: 'Username and duration (days) are required.' });
   }
 
   const keys = readJson(KEYS_FILE, []);
@@ -199,7 +202,7 @@ app.patch('/api/admin/keys/:key', requireAdmin, (req, res) => {
   const { status } = req.body;
   const keys = readJson(KEYS_FILE, []);
   const idx = keys.findIndex((k) => k.key === key);
-  if (idx === -1) return res.status(404).json({ message: 'Key negăsită.' });
+  if (idx === -1) return res.status(404).json({ message: 'Key not found.' });
   if (status === 'active' || status === 'disabled') {
     keys[idx].status = status;
     writeJson(KEYS_FILE, keys);
@@ -211,7 +214,7 @@ app.delete('/api/admin/keys/:key', requireAdmin, (req, res) => {
   const { key } = req.params;
   const keys = readJson(KEYS_FILE, []);
   const filtered = keys.filter((k) => k.key !== key);
-  if (filtered.length === keys.length) return res.status(404).json({ message: 'Key negăsită.' });
+  if (filtered.length === keys.length) return res.status(404).json({ message: 'Key not found.' });
   writeJson(KEYS_FILE, filtered);
   return res.json({ message: 'Key ștearsă.' });
 });
@@ -232,27 +235,27 @@ app.get('/api/config', (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { username, password, key } = req.body;
   if (!username || !password) {
-    return res.status(400).json({ message: 'Username și parola sunt obligatorii.' });
+    return res.status(400).json({ message: 'Username and password are required.' });
   }
 
   const users = readJson(USERS_FILE, []);
   const user = users.find((u) => u.username === username);
-  if (!user) return res.status(400).json({ message: 'Username sau parolă greșite.' });
+  if (!user) return res.status(400).json({ message: 'Wrong username or password.' });
 
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(400).json({ message: 'Username sau parolă greșite.' });
+  if (!ok) return res.status(400).json({ message: 'Wrong username or password.' });
 
   if (key) {
     const keys = readJson(KEYS_FILE, []);
     const keyObj = keys.find((k) => k.key === key && k.assignedTo === username);
-    if (!keyObj) return res.status(400).json({ message: 'Key invalidă pentru acest cont.' });
-    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key dezactivată.' });
-    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expirată.' });
+    if (!keyObj) return res.status(400).json({ message: 'Invalid key for this account.' });
+    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key disabled.' });
+    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expired.' });
   }
 
   const expiresAt = getUserExpiry(username);
   if (!expiresAt || new Date(expiresAt) < new Date()) {
-    return res.status(400).json({ message: 'Licența a expirat.' });
+    return res.status(400).json({ message: 'License has expired.' });
   }
 
   const token = crypto.randomBytes(32).toString('hex');
@@ -276,12 +279,12 @@ app.get('/api/me', requireUser, (req, res) => {
 app.post('/api/extend', requireUser, (req, res) => {
   const { key } = req.body;
   const { username } = req.session;
-  if (!key) return res.status(400).json({ message: 'Introdu key-ul.' });
+  if (!key) return res.status(400).json({ message: 'Enter the key.' });
 
   const keys = readJson(KEYS_FILE, []);
   const keyObj = keys.find((k) => k.key === key);
-  if (!keyObj) return res.status(400).json({ message: 'Key invalidă.' });
-  if (!isKeyValid(keyObj)) return res.status(400).json({ message: 'Key invalidă sau deja folosită.' });
+  if (!keyObj) return res.status(400).json({ message: 'Invalid key.' });
+  if (!isKeyValid(keyObj)) return res.status(400).json({ message: 'Invalid or already used key.' });
 
   const userKeys = keys.filter((k) => k.assignedTo === username);
   const currentLatest = userKeys.length
@@ -301,65 +304,65 @@ app.post('/api/extend', requireUser, (req, res) => {
   if (token) sessions.set(token, { username, expiresAt: keyObj.expiresAt });
   saveSessions();
 
-  return res.json({ message: 'Timp adăugat cu succes.', expiresAt: keyObj.expiresAt });
+  return res.json({ message: 'Time added successfully.', expiresAt: keyObj.expiresAt });
 });
 
 app.post('/api/change-password', requireUser, async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   const { username } = req.session;
-  if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Completează câmpurile.' });
+  if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Fill in all fields.' });
 
   const users = readJson(USERS_FILE, []);
   const idx = users.findIndex((u) => u.username === username);
-  if (idx === -1) return res.status(400).json({ message: 'Utilizator negăsit.' });
+  if (idx === -1) return res.status(400).json({ message: 'User not found.' });
   const ok = await bcrypt.compare(oldPassword, users[idx].passwordHash);
-  if (!ok) return res.status(400).json({ message: 'Parola veche greșită.' });
+  if (!ok) return res.status(400).json({ message: 'Wrong current password.' });
   users[idx].passwordHash = await bcrypt.hash(newPassword, 10);
   writeJson(USERS_FILE, users);
-  return res.json({ message: 'Parolă schimbată.' });
+  return res.json({ message: 'Password changed.' });
 });
 
 app.patch('/api/settings', requireUser, (req, res) => {
   const { theme } = req.body;
   const { username } = req.session;
   const validThemes = ['dark', 'light', 'red', 'blue', 'green'];
-  if (!theme || !validThemes.includes(theme)) return res.status(400).json({ message: 'Temă invalidă.' });
+  if (!theme || !validThemes.includes(theme)) return res.status(400).json({ message: 'Invalid theme.' });
 
   const users = readJson(USERS_FILE, []);
   const idx = users.findIndex((u) => u.username === username);
-  if (idx === -1) return res.status(400).json({ message: 'Utilizator negăsit.' });
+  if (idx === -1) return res.status(400).json({ message: 'User not found.' });
   users[idx].theme = theme;
   writeJson(USERS_FILE, users);
-  return res.json({ message: 'Setări salvate.', theme });
+  return res.json({ message: 'Settings saved.', theme });
 });
 
 app.post('/api/logout', requireUser, (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-auth-token'];
   sessions.delete(token);
   saveSessions();
-  return res.json({ message: 'Deconectat.' });
+  return res.json({ message: 'Logged out.' });
 });
 
 app.post('/api/register', async (req, res) => {
   const { username, password, key } = req.body;
   if (!username || !password || !key) {
-    return res.status(400).json({ message: 'Completează toate câmpurile.' });
+    return res.status(400).json({ message: 'Fill in all fields.' });
   }
 
   const keys = readJson(KEYS_FILE, []);
   const keyObj = keys.find((k) => k.key === key);
 
-  if (!keyObj) return res.status(400).json({ message: 'Key invalidă.' });
+  if (!keyObj) return res.status(400).json({ message: 'Invalid key.' });
   if (!isKeyValid(keyObj)) {
-    if (keyObj.used) return res.status(400).json({ message: 'Key deja folosită.' });
-    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key dezactivată.' });
-    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expirată.' });
-    return res.status(400).json({ message: 'Key invalidă.' });
+    if (keyObj.used) return res.status(400).json({ message: 'Key already used.' });
+    if (keyObj.status === 'disabled') return res.status(400).json({ message: 'Key disabled.' });
+    if (new Date(keyObj.expiresAt) < new Date()) return res.status(400).json({ message: 'Key expired.' });
+    return res.status(400).json({ message: 'Invalid key.' });
   }
 
   const users = readJson(USERS_FILE, []);
   if (users.some((u) => u.username === username)) {
-    return res.status(400).json({ message: 'Username-ul există deja.' });
+    return res.status(400).json({ message: 'Username already exists.' });
   }
 
   try {
@@ -378,14 +381,13 @@ app.post('/api/register', async (req, res) => {
 
     return res.json({ token, user: { username, expiresAt, theme: 'dark' } });
   } catch (err) {
-    console.error('Eroare la înregistrare:', err);
-    return res.status(500).json({ message: 'Eroare de server.' });
+    console.error('Registration error:', err);
+    return res.status(500).json({ message: 'Server error.' });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server pornit pe portul ${PORT}`);
-  console.log(`Acces local: http://localhost:${PORT}`);
-  console.log(`Acces din rețea: http://<IP-TAU>:${PORT}`);
-  console.log(`Admin: http://localhost:${PORT}/admin`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Local: http://localhost:${PORT}`);
+  console.log(`Admin: http://localhost:${PORT}${ADMIN_PATH}`);
 });

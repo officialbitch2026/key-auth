@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -140,8 +140,8 @@
 <body>
   <div id="login-screen" class="login-box">
     <h2>Admin Login</h2>
-    <input type="password" id="admin-password" placeholder="Parolă admin" autocomplete="current-password" />
-    <button type="button" id="admin-login-btn">Intră</button>
+    <input type="password" id="admin-password" placeholder="Admin password" autocomplete="current-password" />
+    <button type="button" id="admin-login-btn">Sign in</button>
     <div id="login-error" class="login-error"></div>
   </div>
 
@@ -149,35 +149,35 @@
     <div class="container">
       <div class="header">
         <h1>Key Manager</h1>
-        <button class="btn btn-logout" id="logout-btn">Deconectare</button>
+        <button class="btn btn-logout" id="logout-btn">Logout</button>
       </div>
 
       <div class="card">
-        <h2>Generează key nou</h2>
+        <h2>Generate new key</h2>
         <div class="form-row">
           <div class="form-group">
             <label>Username</label>
             <input type="text" id="gen-username" placeholder="ex: player1" />
           </div>
           <div class="form-group">
-            <label>Durata (zile)</label>
+            <label>Duration (days)</label>
             <select id="gen-duration">
-              <option value="7">7 zile</option>
-              <option value="30" selected>30 zile</option>
-              <option value="90">90 zile</option>
-              <option value="180">180 zile</option>
-              <option value="365">365 zile</option>
+              <option value="7">7 days</option>
+              <option value="30" selected>30 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">365 days</option>
             </select>
           </div>
           <div class="form-group">
-            <button class="btn btn-gen" id="gen-btn">Generează</button>
+            <button class="btn btn-gen" id="gen-btn">Generate</button>
           </div>
         </div>
         <div id="gen-result" class="gen-result" style="display:none;"></div>
       </div>
 
       <div class="card">
-        <h2>Toate key-urile</h2>
+        <h2>All keys</h2>
         <div style="overflow-x: auto;">
           <table>
             <thead>
@@ -185,13 +185,13 @@
                 <th>Key</th>
                 <th>User</th>
                 <th>Expiry</th>
-                <th>Timp rămas</th>
+                <th>Time left</th>
                 <th>Status</th>
-                <th>Acțiuni</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="keys-tbody">
-              <tr><td colspan="6" class="empty">Se încarcă...</td></tr>
+              <tr><td colspan="6" class="empty">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -216,33 +216,33 @@
       if (token) headers['X-Admin-Token'] = token;
       const res = await fetch(API + path, { ...options, headers });
       const data = res.ok ? await res.json().catch(() => ({})) : await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Eroare');
+      if (!res.ok) throw new Error(data.message || 'Error');
       return data;
     }
 
     function renderStatus(k) {
       const now = new Date();
       const exp = new Date(k.expiresAt);
-      if (k.used) return '<span class="status-badge status-used">Folosită</span>';
-      if (k.status === 'disabled') return '<span class="status-badge status-disabled">Dezactivată</span>';
-      if (exp < now) return '<span class="status-badge status-expired">Expirată</span>';
-      return '<span class="status-badge status-active">Activă</span>';
+      if (k.used) return '<span class="status-badge status-used">Used</span>';
+      if (k.status === 'disabled') return '<span class="status-badge status-disabled">Disabled</span>';
+      if (exp < now) return '<span class="status-badge status-expired">Expired</span>';
+      return '<span class="status-badge status-active">Active</span>';
     }
 
     function timeLeft(expiresAt) {
       const now = new Date();
       const exp = new Date(expiresAt);
-      if (exp < now) return 'Expirat';
+      if (exp < now) return 'Expired';
       const ms = exp - now;
       const d = Math.floor(ms / 86400000);
       const h = Math.floor((ms % 86400000) / 3600000);
-      if (d > 0) return `${d} zile`;
-      if (h > 0) return `${h} ore`;
-      return '< 1 oră';
+      if (d > 0) return `${d} days`;
+      if (h > 0) return `${h} hours`;
+      return '< 1 hour';
     }
 
     function formatDate(iso) {
-      return new Date(iso).toLocaleString('ro-RO', {
+      return new Date(iso).toLocaleString('en-US', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });
@@ -253,7 +253,7 @@
       try {
         const keys = await api('/api/admin/keys');
         if (keys.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty">Nicio key. Generează una mai sus.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="empty">No keys. Generate one above.</td></tr>';
           return;
         }
         tbody.innerHTML = keys.map(k => `
@@ -265,11 +265,11 @@
             <td>${renderStatus(k)}</td>
             <td>
               ${!k.used && k.status === 'active' && new Date(k.expiresAt) > new Date()
-                ? `<button class="btn-sm btn-disable" data-key="${k.key}">Dezactivează</button>`
+                ? `<button class="btn-sm btn-disable" data-key="${k.key}">Disable</button>`
                 : !k.used && k.status === 'disabled'
-                ? `<button class="btn-sm btn-enable" data-key="${k.key}">Activează</button>`
+                ? `<button class="btn-sm btn-enable" data-key="${k.key}">Enable</button>`
                 : ''}
-              <button class="btn-sm btn-delete" data-key="${k.key}">Șterge</button>
+              <button class="btn-sm btn-delete" data-key="${k.key}">Delete</button>
             </td>
           </tr>
         `).join('');
@@ -301,7 +301,7 @@
     }
 
     async function deleteKey(key) {
-      if (!confirm('Ștergi key-ul ' + key + '?')) return;
+      if (!confirm('Delete key ' + key + '?')) return;
       try {
         await api(`/api/admin/keys/${encodeURIComponent(key)}`, { method: 'DELETE' });
         loadKeys();
@@ -313,7 +313,7 @@
     document.getElementById('admin-login-btn').onclick = async () => {
       const pass = document.getElementById('admin-password').value;
       setLoginError('');
-      if (!pass) { setLoginError('Introdu parola.'); return; }
+      if (!pass) { setLoginError('Enter password.'); return; }
       try {
         const { token: t } = await api('/api/admin/login', {
           method: 'POST',
@@ -325,7 +325,7 @@
         show(document.getElementById('admin-panel'), true);
         loadKeys();
       } catch (e) {
-        setLoginError(e.message || 'Parolă greșită.');
+        setLoginError(e.message || 'Wrong password.');
       }
     };
 
@@ -341,19 +341,19 @@
       const username = document.getElementById('gen-username').value.trim();
       const duration = document.getElementById('gen-duration').value;
       const resultEl = document.getElementById('gen-result');
-      if (!username) { resultEl.textContent = 'Introdu username.'; resultEl.className = 'gen-result'; resultEl.style.display = 'block'; return; }
+      if (!username) { resultEl.textContent = 'Enter username.'; resultEl.className = 'gen-result'; resultEl.style.display = 'block'; return; }
       try {
         const k = await api('/api/admin/keys', {
           method: 'POST',
           body: JSON.stringify({ username, durationDays: Number(duration) })
         });
-        resultEl.innerHTML = `Key generată: <strong>${k.key}</strong> (${k.username}, expiră ${formatDate(k.expiresAt)})`;
+        resultEl.innerHTML = `Key generated: <strong>${k.key}</strong> (${k.username}, expires ${formatDate(k.expiresAt)})`;
         resultEl.className = 'gen-result success';
         resultEl.style.display = 'block';
         document.getElementById('gen-username').value = '';
         loadKeys();
       } catch (e) {
-        resultEl.textContent = e.message || 'Eroare';
+        resultEl.textContent = e.message || 'Error';
         resultEl.className = 'gen-result';
         resultEl.style.display = 'block';
       }

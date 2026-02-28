@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -81,16 +81,16 @@
   <div class="card">
     <div class="tabs">
       <button type="button" class="tab-switch active" data-form="login">Login</button>
-      <button type="button" class="tab-switch" data-form="register">Crează cont</button>
+      <button type="button" class="tab-switch" data-form="register">Create account</button>
     </div>
 
     <div id="form-login" class="form-wrap active">
       <h1>Login</h1>
-      <p class="subtitle">Autentificare cu username și parolă.</p>
+      <p class="subtitle">Sign in with username and password.</p>
       <form id="login-form">
         <label>Username</label>
         <input id="login-username" autocomplete="username" />
-        <label>Parolă</label>
+        <label>Password</label>
         <input id="login-password" type="password" autocomplete="current-password" />
         <button type="submit">Login</button>
         <div id="login-status" class="status"></div>
@@ -98,16 +98,16 @@
     </div>
 
     <div id="form-register" class="form-wrap">
-      <h1>Crează cont</h1>
-      <p class="subtitle">Introdu username, parola și key-ul primit.</p>
+      <h1>Create account</h1>
+      <p class="subtitle">Enter username, password and your license key.</p>
       <form id="register-form">
         <label>Username</label>
-        <input id="reg-username" autocomplete="username" placeholder="Alege un username" />
-        <label>Parolă</label>
-        <input id="reg-password" type="password" autocomplete="new-password" placeholder="Alege o parolă" />
+        <input id="reg-username" autocomplete="username" placeholder="Choose a username" />
+        <label>Password</label>
+        <input id="reg-password" type="password" autocomplete="new-password" placeholder="Choose a password" />
         <label>Key</label>
-        <input id="reg-key" autocomplete="off" placeholder="Key-ul tău de licență" />
-        <button type="submit">Crează cont</button>
+        <input id="reg-key" autocomplete="off" placeholder="Your license key" />
+        <button type="submit">Create account</button>
         <div id="register-status" class="status"></div>
       </form>
     </div>
@@ -139,7 +139,7 @@
       const username = document.getElementById('login-username').value.trim();
       const password = document.getElementById('login-password').value.trim();
       const el = document.getElementById('login-status');
-      setStatus(el, 'Se trimite...', 'success');
+      setStatus(el, 'Sending...', 'success');
       try {
         const res = await fetch('/api/login', {
           method: 'POST',
@@ -148,9 +148,9 @@
         });
         const data = await res.json();
         if (res.ok) return onSuccess(data);
-        setStatus(el, data.message || 'Eroare', 'error');
+        setStatus(el, data.message || 'Error', 'error');
       } catch (err) {
-        setStatus(el, 'Eroare de rețea.', 'error');
+        setStatus(el, 'Network error.', 'error');
       }
     };
     document.getElementById('register-form').onsubmit = async (e) => {
@@ -159,7 +159,7 @@
       const password = document.getElementById('reg-password').value.trim();
       const key = document.getElementById('reg-key').value.trim();
       const el = document.getElementById('register-status');
-      setStatus(el, 'Se trimite...', 'success');
+      setStatus(el, 'Sending...', 'success');
       try {
         const res = await fetch('/api/register', {
           method: 'POST',
@@ -168,9 +168,9 @@
         });
         const data = await res.json();
         if (res.ok) return onSuccess(data);
-        setStatus(el, data.message || 'Eroare', 'error');
+        setStatus(el, data.message || 'Error', 'error');
       } catch (err) {
-        setStatus(el, 'Eroare de rețea.', 'error');
+        setStatus(el, 'Network error.', 'error');
       }
     };
   </script>
